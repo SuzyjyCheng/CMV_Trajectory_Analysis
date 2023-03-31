@@ -1,0 +1,36 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-02-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(TSCAN)
+library(Seurat)
+library(tidyverse)
+library(dbscan)
+```
+
+```{r}
+dat = read.csv("umap.csv", row.names = 1)
+tpdat = read.csv("exp_mat_tp.csv", row.names = 1)
+exp_mat = tpdat[-1]
+data = dat[-3]
+mat = t(exp_mat)
+```
+
+```{r}
+tscan_dat = as.data.frame(mat)
+lpsmclust <- exprmclust(tscan_dat)
+plotmclust(lpsmclust)
+```
+```{r}
+lpsorder <- TSCANorder(lpsmclust)
+lpsorder
+```
+
+```{r}
+write.csv("lpsorder.csv", lpsorder)
+```
+

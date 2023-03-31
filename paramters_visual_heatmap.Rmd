@@ -1,0 +1,46 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-01-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(pracma)
+library(reshape2)
+library(ggplot2)
+library(seriation)
+library(RColorBrewer)
+```
+
+```{r}
+cell_mat = read.csv("~/Desktop/GenLouvain/pmat_1k.csv", header = F)
+```
+
+```{r}
+omega = round(linspace(0.001,40,100),3)
+gamma = round(linspace(0.001,10,100),3)
+row.names(cell_mat) = gamma
+colnames(cell_mat) = omega
+```
+
+```{r}
+library(ggplot2)
+A = as.matrix(cell_mat)
+longData<-melt(A)
+longData<-longData[longData$value!=0,]
+
+g = ggplot(longData, aes(x = Var2, y = Var1)) + 
+  geom_tile(aes(fill=value))+
+  coord_cartesian(xlim = c(0,40), ylim = c(0,10))  +
+  scale_fill_gradientn(colors = hcl.colors(20, "RdYlGn")) +
+  labs(x="Omage", y="Gamma", title="Omega vs Gamma Matrix") +
+  theme_bw() + 
+  scale_x_continuous(breaks = seq(0, 40, by = 1)) +
+  scale_y_continuous(breaks = seq(0, 10, by = 1)) +
+  theme(axis.text.x=element_text(size=9, angle=0, vjust=0.3),
+                     axis.text.y=element_text(size=9),
+                     plot.title=element_text(size=11))+
+  geom_text(aes(label = value), color = "white", size = 2)
+```
+

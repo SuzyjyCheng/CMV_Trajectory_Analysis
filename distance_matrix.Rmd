@@ -1,0 +1,351 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-02-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(TSCAN)
+library(tidyverse)
+library(dbscan)
+library(pscl)
+library(matrixStats)
+library(dtwclust)
+library(dtw)
+library(dplyr)
+library(ts2net)
+```
+
+```{r}
+dat = read.csv("exp_mat_tp.csv") #expression matrix
+pt = read.csv("lpsorder.csv", row.names = 1) #pseudotime order
+```
+
+##Use lowess regression to smooth trajectories 
+
+```{r}
+dat_pt = dat[match(pt[,1], dat$X),]
+dat_pt$pt = c(1:length(pt[,1]))
+
+##Observe the overall trajectories plots
+matrix_all = rep(NA, 14)
+for (i in 3:16) {
+  model = lowess(dat_pt$pt, dat_pt[,i])[2]
+  matrix_all[i] = model
+}
+lowess_all = as.data.frame(matrix_all[3:16])
+gene = colnames(dat[3:16])
+colnames(lowess_all) = gene
+
+col_set <- rainbow(ncol(lowess_all))
+matplot(c(1:length(pt[,1])), lowess_all, type="l", col = col_set)
+
+nn <- ncol(lowess_all)
+layout(matrix(c(1,2),nrow=1), width=c(5,3)) 
+par(mar=c(5,4,4,0)) #No margin on the right side
+matplot(c(1:length(pt[,1])), lowess_all, type="l", col = col_set,
+        xlab="Cell",ylab="Expression",main="Pseudo-time Trajectories for All Genes")
+par(mar=c(5,0,4,2)) #No margin on the left side
+plot(c(0,1),type="n", axes=F, xlab="", ylab="")
+legend("center", gene,col=seq_len(nn),cex=0.8,fill=seq_len(nn))
+```
+## Remove markers with low vairations
+```{r}
+lowesss_mat_all = as.matrix(lowess_all)
+colMaxs(lowesss_mat_all) - colMins(lowesss_mat_all)
+colnames(lowesss_mat_all)
+
+diff = data.frame(colnames(lowesss_mat_all),colMaxs(lowesss_mat_all) - colMins(lowesss_mat_all) )
+colnames(diff) = c('gene', 'diff')
+diff
+```
+
+## Selected markers with high variations
+```{r}
+sel_gene = diff %>% filter(diff > 200) 
+sel_gene = sel_gene[,1]
+```
+
+```{r}
+dat = dat[,c('X', 'timepoint', sel_gene)]
+```
+
+## Seperate expression matrix by 5 time points
+
+```{r}
+tp0 = dat %>% filter(timepoint == 'tp0')
+tp1 = dat %>% filter(timepoint == 'tp1')
+tp4 = dat %>% filter(timepoint == 'tp4')
+tp7 = dat %>% filter(timepoint == 'tp7')
+tp14 = dat %>% filter(timepoint == 'tp14')
+```
+
+
+```{r}
+pt0 = pt[pt$x %in% tp0$X,]
+pt1 = pt[pt$x %in% tp1$X,]
+pt4 = pt[pt$x %in% tp4$X,]
+pt7 = pt[pt$x %in% tp7$X,]
+pt14 = pt[pt$x %in% tp14$X,]
+```
+
+```{r}
+tp0_pt = tp0[match(pt0, tp0$X),]
+tp0_pt$pt = c(1:length(pt0))
+
+tp1_pt = tp1[match(pt1, tp1$X),]
+tp1_pt$pt = c(1:length(pt1))
+
+tp4_pt = tp4[match(pt4, tp4$X),]
+tp4_pt$pt = c(1:length(pt4))
+
+tp7_pt = tp7[match(pt7, tp7$X),]
+tp7_pt$pt = c(1:length(pt7))
+
+tp14_pt = tp14[match(pt14, tp14$X),]
+tp14_pt$pt = c(1:length(pt14))
+```
+
+## Time point 0
+```{r}
+# Lowess
+matrix0 = rep(NA, 5)
+for (i in 3:dim(tp0_pt)[2]) {
+  model = lowess(tp0_pt$pt, tp0_pt[,i])[2]
+  matrix0[i] = model
+}
+lowess_tp0 = as.data.frame(matrix0[3:7])
+colnames(lowess_tp0) = sel_gene
+
+#Plots
+nn <- ncol(lowess_tp0)
+layout(matrix(c(1,2),nrow=1), width=c(4,2)) 
+par(mar=c(5,4,4,0)) #No margin on the right side
+matplot(c(1:length(pt0)), lowess_tp0, type="l",
+        xlab="Cell",ylab="Expression",main="Trajectories for time point 1")
+par(mar=c(5,0,4,2)) #No margin on the left side
+plot(c(0,1),type="n", axes=F, xlab="", ylab="")
+legend("center", sel_gene,col=seq_len(nn),cex=0.8,fill=seq_len(nn))
+```
+
+
+## Time point 1
+```{r}
+# Lowess
+matrix1 = rep(NA, 5)
+for (i in 3:7) {
+  model = lowess(tp1_pt$pt, tp1_pt[,i])[2]
+  matrix1[i] = model
+}
+lowess_tp1 = as.data.frame(matrix1[3:7])
+colnames(lowess_tp1) = sel_gene
+
+#Plots
+nn <- ncol(lowess_tp1)
+layout(matrix(c(1,2),nrow=1), width=c(4,2)) 
+par(mar=c(5,4,4,0)) #No margin on the right side
+matplot(c(1:length(pt1)), lowess_tp1, type="l",
+        xlab="Cell",ylab="Expression",main="Trajectories for time point 2")
+par(mar=c(5,0,4,2)) #No margin on the left side
+plot(c(0,1),type="n", axes=F, xlab="", ylab="")
+legend("center", sel_gene,col=seq_len(nn),cex=0.8,fill=seq_len(nn))
+```
+
+## Time point 4
+```{r}
+matrix4 = rep(NA, 7)
+for (i in 3:7) {
+  model = lowess(tp4_pt$pt, tp4_pt[,i])[2]
+  matrix4[i] = model
+}
+lowess_tp4 = as.data.frame(matrix4[3:7])
+colnames(lowess_tp4) = sel_gene
+
+
+#Plots
+nn <- ncol(lowess_tp4)
+layout(matrix(c(1,2),nrow=1), width=c(4,2)) 
+par(mar=c(5,4,4,0)) #No margin on the right side
+matplot(c(1:length(pt4)), lowess_tp4, type="l",
+        xlab="Cell",ylab="Expression",main="Trajectories for time point 3")
+par(mar=c(5,0,4,2)) #No margin on the left side
+plot(c(0,1),type="n", axes=F, xlab="", ylab="")
+legend("center", sel_gene,col=seq_len(nn),cex=0.8,fill=seq_len(nn))
+```
+
+## Time point 7
+```{r}
+# Lowess
+matrix7 = rep(NA, 7)
+for (i in 3:7) {
+  model = lowess(tp7_pt$pt, tp7_pt[,i])[2]
+  matrix7[i] = model
+}
+lowess_tp7 = as.data.frame(matrix7[3:7])
+colnames(lowess_tp7) = sel_gene
+
+#Plots
+nn <- ncol(lowess_tp7)
+layout(matrix(c(1,2),nrow=1), width=c(4,2)) 
+par(mar=c(5,4,4,0)) #No margin on the right side
+matplot(c(1:length(pt7)), lowess_tp7, type="l",
+        xlab="Cell",ylab="Expression",main="Trajectories for time point 4")
+par(mar=c(5,0,4,2)) #No margin on the left side
+plot(c(0,1),type="n", axes=F, xlab="", ylab="")
+legend("center", sel_gene,col=seq_len(nn),cex=0.8,fill=seq_len(nn))
+```
+
+## Time point 14
+```{r}
+# Lowess
+matrix14 = rep(NA, 7)
+for (i in 3:7) {
+  model = lowess(tp14_pt$pt, tp14_pt[,i])[2]
+  matrix14[i] = model
+}
+lowess_tp14 = as.data.frame(matrix14[3:7])
+colnames(lowess_tp14) = sel_gene
+
+
+#Plots
+nn <- ncol(lowess_tp14)
+layout(matrix(c(1,2),nrow=1), width=c(4,2)) 
+par(mar=c(5,4,4,0)) #No margin on the right side
+matplot(c(1:length(pt14)), lowess_tp14, type="l",
+        xlab="Cell",ylab="Expression",main="Trajectories for time point 5")
+par(mar=c(5,0,4,2)) #No margin on the left side
+plot(c(0,1),type="n", axes=F, xlab="", ylab="")
+legend("center", sel_gene,col=seq_len(nn),cex=0.8,fill=seq_len(nn))
+```
+
+## DTW for Marker/Gene 
+```{r}
+#dtw distance normalization function
+ndtw <- function(x, y = NULL, ...) {
+    dtw::dtw(x, y, ..., distance.only = TRUE)$normalizedDistance
+}
+
+pr_DB$set_entry(
+  FUN = ndtw,
+  names = "ndtw",
+  loop = TRUE,
+  distance = TRUE
+)
+```
+
+## Normalize Trajectories and dtw distances
+```{r}
+df_tra0 = lowess_tp0 %>% mutate_all(funs((. - min(., na.rm = T))/(max(., na.rm = T) - min(., na.rm = T)))) #normalization of trjectories
+d0 = proxy::dist(t(df_tra0), method = "ndtw", upper = TRUE, diag = TRUE) #dtw distance normalization
+
+df_tra1 = lowess_tp1 %>% mutate_all(funs((. - min(., na.rm = T))/(max(., na.rm = T) - min(., na.rm = T))))
+d1 = proxy::dist(t(df_tra1), method = "ndtw", upper = TRUE, diag = TRUE)
+
+
+df_tra4 = lowess_tp4 %>% mutate_all(funs((. - min(., na.rm = T))/(max(., na.rm = T) - min(., na.rm = T))))
+d4 = proxy::dist(t(df_tra4), method = "ndtw", upper = TRUE, diag = TRUE)
+
+df_tra7 = lowess_tp7 %>% mutate_all(funs((. - min(., na.rm = T))/(max(., na.rm = T) - min(., na.rm = T))))
+d7 = proxy::dist(t(df_tra7), method = "ndtw", upper = TRUE, diag = TRUE)
+
+df_tra14 = lowess_tp14 %>% mutate_all(funs((. - min(., na.rm = T))/(max(., na.rm = T) - min(., na.rm = T))))
+d14 = proxy::dist(t(df_tra14), method = "ndtw", upper = TRUE, diag = TRUE)
+```
+
+## Calculate matrix as input for GenLouvain
+```{r}
+mat_d0 = 1 - as.matrix(d0) 
+diag(mat_d0) = 0
+mat_d1 = 1 - as.matrix(d1)
+diag(mat_d1) = 0
+mat_d4 = 1 - as.matrix(d4)
+diag(mat_d4) = 0
+mat_d7 = 1 - as.matrix(d7)
+diag(mat_d7) = 0
+mat_d14 = 1 - as.matrix(d14)
+diag(mat_d14) = 0
+
+#write.csv(mat_d14, "mat_d14.csv", row.names = F)
+```
+
+## Distance matrix for 1,000 cells
+```{r}
+interval0 = floor(seq.int(from=1,to=nrow(lowess_tp0),length.out=1000)) #subsetting data
+cell_tr0_300 = lowess_tp0[interval0,]  %>% 
+  mutate_all(funs((. - min(., na.rm = T))/(max(., na.rm = T) - min(., na.rm = T)))) #normalization 
+cell_d0 = dist(cell_tr0_300, method = "euclidean") #distance matrix
+
+interval1 = floor(seq.int(from=1,to=nrow(lowess_tp1),length.out=1000))
+cell_tr1_300 = lowess_tp1[interval1,] %>% 
+  mutate_all(funs((. - min(., na.rm = T))/(max(., na.rm = T) - min(., na.rm = T))))
+cell_d1 = dist(cell_tr1_300, method = "euclidean")
+
+interval4 = floor(seq.int(from=1,to=nrow(lowess_tp4),length.out=1000))
+cell_tr4_300 = lowess_tp4[interval4,] %>% 
+  mutate_all(funs((. - min(., na.rm = T))/(max(., na.rm = T) - min(., na.rm = T))))
+cell_d4 = dist(cell_tr4_300, method = "euclidean")
+
+interval7 = floor(seq.int(from=1,to=nrow(lowess_tp7),length.out=1000))
+cell_tr7_300 = lowess_tp7[interval7,] %>% 
+  mutate_all(funs((. - min(., na.rm = T))/(max(., na.rm = T) - min(., na.rm = T))))
+cell_d7 = dist(cell_tr7_300, method = "euclidean")
+
+interval14 = floor(seq.int(from=1,to=nrow(lowess_tp14),length.out=1000))
+cell_tr14_300 = lowess_tp14[interval14,] %>% 
+  mutate_all(funs((. - min(., na.rm = T))/(max(., na.rm = T) - min(., na.rm = T))))
+cell_d14 = dist(cell_tr14_300, method = "euclidean")
+
+```
+
+## Euclidean distance normalization
+```{r}
+n_cell_d0 = dist_matrix_normalize(as.matrix(cell_d0), to = c(0, 1))
+n_cell_d1 = dist_matrix_normalize(as.matrix(cell_d1), to = c(0, 1))
+n_cell_d4 = dist_matrix_normalize(as.matrix(cell_d4), to = c(0, 1))
+n_cell_d7 = dist_matrix_normalize(as.matrix(cell_d7), to = c(0, 1))
+n_cell_d14 = dist_matrix_normalize(as.matrix(cell_d14), to = c(0, 1))
+
+cell_mat_d0 = 1 - n_cell_d0
+diag(cell_mat_d0) = 0
+cell_mat_d1 = 1 - n_cell_d1
+diag(cell_mat_d1) = 0
+cell_mat_d4 = 1 - n_cell_d4
+diag(cell_mat_d4) = 0
+cell_mat_d7 = 1 - n_cell_d7
+diag(cell_mat_d7) = 0
+cell_mat_d14 = 1 - n_cell_d14
+diag(cell_mat_d14) = 0
+
+#write.csv(cell_mat_d0, "cell_mat_d0.csv", row.names = F)
+#write.csv(cell_mat_d1, "cell_mat_d1.csv", row.names = F)
+#write.csv(cell_mat_d4, "cell_mat_d4.csv", row.names = F)
+#write.csv(cell_mat_d7, "cell_mat_d7.csv", row.names = F)
+#write.csv(cell_mat_d14, "cell_mat_d14.csv", row.names = F)
+```
+
+
+
+
+```{r}
+matplot(c(1:length(pt0)), lowess_tp0, type="l",
+        xlab="Cell",ylab="Expression",main="Trajectories for time point 0")
+matplot(c(1:length(pt1)), lowess_tp1, type="l",
+        xlab="Cell",ylab="Expression",main="Trajectories for time point 1")
+matplot(c(1:length(pt4)), lowess_tp4, type="l",
+        xlab="Cell",ylab="Expression",main="Trajectories for time point 4")
+matplot(c(1:length(pt7)), lowess_tp7, type="l",
+        xlab="Cell",ylab="Expression",main="Trajectories for time point 7")
+matplot(c(1:length(pt14)), lowess_tp14, type="l",
+        xlab="Cell",ylab="Expression",main="Trajectories for time point 14")
+```
+
+
+
+
+
+
+
+
+
+
